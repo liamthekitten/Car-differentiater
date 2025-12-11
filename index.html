@@ -424,4 +424,80 @@
       // sort by probability descending
       predictions.sort((a,b) => b.probability - a.probability);
       const top = predictions[0];
-      topPredEl.textContent = prettyLabel(top.className) + ' — ' + (top.probability*100).to*
+      topPredEl.textContent = prettyLabel(top.className) + ' — ' + (top.probability*100).toFixed(1) + '%';
+
+      // build list elements
+      predListUL.innerHTML = '';
+      predictions.forEach(p => {
+        const li = document.createElement('li');
+        li.className = 'pred-item';
+        const label = document.createElement('div');
+        label.className = 'pred-label';
+        label.textContent = prettyLabel(p.className);
+
+        const barWrap = document.createElement('div');
+        barWrap.className = 'pred-bar';
+        const bar = document.createElement('i');
+        // animate width
+        requestAnimationFrame(()=> {
+          bar.style.width = Math.max(1, Math.round(p.probability*100)) + '%';
+        });
+        barWrap.appendChild(bar);
+
+        const value = document.createElement('div');
+        value.className = 'pred-value';
+        value.textContent = (p.probability*100).toFixed(1) + '%';
+
+        li.appendChild(label);
+        li.appendChild(barWrap);
+        li.appendChild(value);
+        predListUL.appendChild(li);
+      });
+    }
+
+    // kick off initial model load but don't block page rendering
+    (async ()=>{ try{ await loadModel(); } catch(e){ console.warn('Model initial load failed', e); } })();
+
+
+    // === EMOJIS: create 15+ fast floating car emojis across the racetrack ===
+    (function spawnEmojis(){
+      const root = document.getElementById('emojis-root');
+      const emojiChars = ['🚗','🚙','🏎️','🚐','🚕','🚘']; // variety
+      const count = 18; // at least 15 as requested
+
+      for(let i=0;i<count;i++){
+        const span = document.createElement('span');
+        span.className = 'emoji';
+        span.textContent = emojiChars[i % emojiChars.length];
+        // random start x offset
+        const startX = Math.floor(Math.random()*120) - 10; // px shift left/right
+        // each emoji will translate across entire width; set CSS custom properties for animation
+        const sx = (Math.random()*100 - 50) + 'px';
+        const ex = ((Math.random()*160) - 80) + 'vw'; // travel distance
+        const rot = Math.floor(Math.random()*60 - 30) + 'deg';
+        const size = 18 + Math.floor(Math.random()*22); // 18-40px
+        span.style.left = Math.floor(Math.random()*90) + 'vw';
+        span.style.top = Math.floor(Math.random()*80) + 'vh';
+        span.style.fontSize = size + 'px';
+        span.style.setProperty('--sx', sx);
+        span.style.setProperty('--ex', ex);
+        span.style.setProperty('--rot', rot);
+        // randomize speed (shorter duration = faster)
+        const duration = 6 + Math.random()*6; // 6s - 12s
+        span.style.animationDuration = duration + 's';
+        // negative delay so they don't all start together
+        span.style.animationDelay = (-Math.random()*12) + 's';
+        // give slight opacity variance
+        span.style.opacity = (0.75 + Math.random()*0.25).toString();
+        root.appendChild(span);
+      }
+    })();
+
+    // Accessibility: allow clicking uploader to open file input
+    document.getElementById('chooseBtn').addEventListener('click', () => fileInput.click());
+    // allow keyboard 'Enter' on uploader to trigger file input
+    uploader.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+  </script>
+</body>
+</html>
