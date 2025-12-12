@@ -1,503 +1,189 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Car Type Classifier — Teachable Machine</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Car Classifier – Teachable Machine</title>
 
-  <!-- Teachable Machine and TensorFlow -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-
-  <style>
-    :root{
-      --accent: #ffd400; /* yellow */
-      --asphalt: #121214;
-      --track-dark: #1b1b1d;
-      --muted: #bfc3c7;
-      --card: #0f1112cc;
-      --glass: rgba(255,255,255,0.03);
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #2b2b2b;
+        color: white;
+        overflow-x: hidden;
     }
 
-    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
-    body{
-      background: radial-gradient(circle at 20% 10%, rgba(255,255,255,0.02), transparent 5%),
-                  linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.6));
-      color:#fff;
-    }
-
-    /* racetrack background with yellow lane lines */
+    /* Racetrack background */
     .racetrack {
-      position:fixed;
-      inset:0;
-      z-index:-2;
-      background:
-        repeating-linear-gradient(90deg, transparent 0 40px, rgba(255,255,255,0.02) 40px 42px),
-        linear-gradient(180deg, var(--asphalt), var(--track-dark));
-      overflow:hidden;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: repeating-linear-gradient(
+            0deg,
+            #1e1e1e 0,
+            #1e1e1e 40px,
+            #333 40px,
+            #333 80px
+        );
+        z-index: -2;
     }
 
-    /* stylized dashed yellow centerline */
-    .racetrack::after {
-      content: "";
-      position:absolute;
-      left:10%;
-      right:10%;
-      top:0;
-      bottom:0;
-      margin:auto;
-      height:8px;
-      width:80%;
-      background:
-        repeating-linear-gradient(90deg, var(--accent) 0 30px, transparent 30px 60px);
-      opacity:0.12;
-      transform: translateY(0);
-      filter: drop-shadow(0 1px 1px rgba(0,0,0,0.9));
+    /* Yellow divider lines */
+    .yellow-lines {
+        position: fixed;
+        top: 0;
+        left: 50%;
+        width: 6px;
+        height: 100%;
+        background: repeating-linear-gradient(
+            yellow 0 40px,
+            transparent 40px 80px
+        );
+        transform: translateX(-50%);
+        z-index: -1;
     }
 
-    /* floating car emojis */
-    .emoji {
-      position: absolute;
-      font-size: 28px;
-      will-change: transform, opacity;
-      animation-name: floaty;
-      animation-iteration-count: infinite;
-      animation-timing-function: linear;
-      pointer-events:none;
-      opacity: 0.95;
-      text-shadow: 0 1px 0 rgba(0,0,0,0.6);
-      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6));
+    /* Floating car emojis */
+    .car-emoji {
+        position: fixed;
+        font-size: 34px;
+        animation: floatCar linear infinite;
+        z-index: -1;
+        opacity: 0.9;
     }
 
-    @keyframes floaty {
-      /* move vertically fast and also sideways; speed randomized via CSS vars */
-      0%   { transform: translate(var(--sx,0px), -10vh) rotate(var(--rot,0deg)); }
-      100% { transform: translate(var(--ex,100vw), 110vh) rotate(calc(var(--rot,0deg) + 360deg)); }
+    @keyframes floatCar {
+        from { transform: translateY(110vh) rotate(0deg); }
+        to   { transform: translateY(-20vh) rotate(20deg); }
     }
 
-    /* main container */
-    .wrap {
-      max-width:1100px;
-      margin: 28px auto;
-      padding: 18px;
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:18px;
+    .container {
+        max-width: 420px;
+        margin: 40px auto;
+        text-align: center;
+        padding: 20px;
+        background: rgba(0,0,0,0.55);
+        border-radius: 14px;
+        box-shadow: 0 0 12px #000;
     }
 
-    header {
-      display:flex;
-      gap:12px;
-      align-items:center;
-      justify-content:space-between;
-    }
-    .brand {
-      display:flex;
-      gap:12px;
-      align-items:center;
-    }
-    .brand h1 { margin:0;font-size:20px;letter-spacing:0.2px; }
-    .brand .logo {
-      width:56px;height:56px;border-radius:12px;
-      background: linear-gradient(180deg,#222,#111);
-      border: 2px solid rgba(255,255,255,0.04);
-      display:flex;align-items:center;justify-content:center;font-size:24px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.6), inset 0 -6px 14px rgba(255,255,255,0.02);
+    button {
+        padding: 12px 20px;
+        font-size: 16px;
+        margin: 10px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        background: #ffcc00;
+        color: black;
+        font-weight: bold;
     }
 
-    .card {
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-      padding:14px;border-radius:12px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.55);
-      border:1px solid rgba(255,255,255,0.03);
+    #webcam-container {
+        margin-top: 20px;
     }
 
-    /* layout for main content: responsive two-column */
-    .grid {
-      display:grid;
-      grid-template-columns: 1fr 420px;
-      gap:18px;
-    }
-    @media (max-width:940px){
-      .grid{grid-template-columns:1fr;}
+    .bar-container {
+        width: 100%;
+        background: #444;
+        border-radius: 6px;
+        margin: 5px 0;
     }
 
-    /* uploader area */
-    .uploader {
-      border: 2px dashed rgba(255,255,255,0.06);
-      border-radius:10px;
-      padding:18px;
-      text-align:center;
-      transition: border-color .18s ease, background .18s;
-      background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+    .bar {
+        height: 18px;
+        background: #ffcc00;
+        border-radius: 6px;
+        width: 0%;
+        transition: width 0.3s ease;
     }
-    .uploader.dragover { border-color: var(--accent); background: rgba(255,212,0,0.02); }
-    .uploader input { display:none; }
-
-    .btn {
-      display:inline-block;
-      padding:10px 14px;
-      border-radius:10px;
-      background: linear-gradient(180deg,var(--accent), #ffcc00);
-      color:#111;
-      font-weight:600;
-      cursor:pointer;
-      border:none;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.6);
-    }
-
-    .preview {
-      border-radius:10px;
-      overflow:hidden;
-      background: #0b0b0b;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      min-height:260px;
-    }
-    .preview img{max-width:100%; height:auto; display:block;}
-
-    /* predictions list with bars */
-    .pred-list { margin:0;padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
-    .pred-item {
-      display:flex; gap:10px; align-items:center; justify-content:space-between;
-      background: rgba(255,255,255,0.02); padding:8px 10px; border-radius:8px;
-    }
-    .pred-label { font-weight:700; font-size:14px; min-width:120px; color:var(--muted); text-transform:capitalize; }
-    .pred-bar {
-      flex:1; height:10px; background:rgba(255,255,255,0.04); border-radius:999px; margin:0 10px; overflow:hidden;
-    }
-    .pred-bar > i { display:block; height:100%; width:0%; background: linear-gradient(90deg,var(--accent), #ffb400); border-radius:999px; transition: width .4s ease; }
-
-    .pred-value { min-width:46px; text-align:right; font-size:13px; color:var(--muted); }
-
-    /* small text */
-    .muted { color:var(--muted); font-size:13px; }
-
-    footer { color:var(--muted); font-size:13px; text-align:center; padding:10px 0; }
-
-    /* subtle card header */
-    .card h2 { margin:0 0 8px 0; font-size:16px; }
-    .card p { margin:0;font-size:14px;color:var(--muted);line-height:1.4; }
-
-    /* accessible focus */
-    .btn:focus, .uploader:focus { outline: 3px solid rgba(255,212,0,0.18); outline-offset:4px; }
-
-  </style>
+</style>
 </head>
+
 <body>
-  <div class="racetrack" aria-hidden="true"></div>
 
-  <!-- fast floating car emojis (generated via JS as well) -->
-  <div id="emojis-root" aria-hidden="true"></div>
+<div class="racetrack"></div>
+<div class="yellow-lines"></div>
 
-  <main class="wrap">
-    <header>
-      <div class="brand">
-        <div class="logo">🚗</div>
-        <div>
-          <h1>Car Type Classifier</h1>
-          <div class="muted">Classifies Minivan, SUV, Sports Car, and Sedan — runs entirely in your browser</div>
-        </div>
-      </div>
+<!-- 🚗 Generate 15 fast floating car emojis -->
+<script>
+for (let i = 0; i < 15; i++) {
+    let emoji = document.createElement("div");
+    emoji.className = "car-emoji";
+    emoji.innerHTML = "🚗";
+    emoji.style.left = Math.random() * 100 + "vw";
+    emoji.style.animationDuration = (3 + Math.random() * 3) + "s";
+    emoji.style.animationDelay = (Math.random() * 3) + "s";
+    document.body.appendChild(emoji);
+}
+</script>
 
-      <div style="text-align:right;">
-        <div class="muted">Model URL: <code style="color:#fff;font-size:12px;">./my_model/</code></div>
-      </div>
-    </header>
+<div class="container">
+    <h1>Car Classifier</h1>
+    <p>This model identifies <strong>MINIVAN</strong>, <strong>SUV</strong>, <strong>SPORTS CAR</strong>, and <strong>SEDAN</strong> using your camera.</p>
 
-    <!-- explanatory card -->
-    <section class="card">
-      <h2>Problem & Who Benefits</h2>
-      <p>
-        Problem: Quickly identifying car types from images — useful for dataset labeling, parking analytics,
-        classroom demos, and quick prototyping. No server required: the model runs locally in the browser.
-      </p>
-      <p style="margin-top:8px;">
-        Who benefits: students and teachers learning machine learning, hobbyists building car-sorting demos,
-        developers prototyping small applications, and anyone who needs on-device image classification.
-      </p>
-    </section>
+    <button onclick="init()">Start Camera</button>
 
-    <!-- Grid: uploader + preview + predictions -->
-    <section class="grid">
-      <!-- left: uploader + preview -->
-      <div class="card">
-        <h2>Upload a Photo</h2>
-        <p class="muted">Drop an image of a car here or click to choose a file. The model will classify it into <strong>Minivan</strong>, <strong>SUV</strong>, <strong>Sports Car</strong>, or <strong>Sedan</strong>.</p>
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+</div>
 
-        <div id="uploader" tabindex="0" class="uploader" aria-label="File uploader">
-          <p style="margin:6px 0 12px 0;">📷 Drag & drop a photo, or</p>
-          <label class="btn" id="chooseBtn" for="fileInput">Choose a file</label>
-          <input id="fileInput" type="file" accept="image/*" />
-          <div style="margin-top:12px;color:var(--muted);font-size:13px;">Tip: photos with clear view of the car work best (side or 3/4 view).</div>
-        </div>
+<!-- TensorFlow + TM -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 
-        <div style="height:12px"></div>
+<script>
+    const URL = "./my_model/";
+    let model, webcam, labelContainer, maxPredictions;
 
-        <div class="preview" aria-live="polite" id="previewArea">
-          <div style="text-align:center;color:var(--muted);padding:20px;">
-            <div style="font-size:32px">🚘</div>
-            <div class="muted" style="margin-top:8px;">No photo loaded</div>
-          </div>
-        </div>
-
-        <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
-          <button id="predictBtn" class="btn" style="background:linear-gradient(180deg,#44d62c,#2fb310);" disabled>Classify Image</button>
-          <div style="font-size:13px;color:var(--muted);">Model status: <span id="modelStatus">Not loaded</span></div>
-        </div>
-
-        <div style="margin-top:12px;font-size:13px;color:var(--muted);">
-          <strong>Instructions:</strong>
-          <ol style="margin:6px 0 0 18px;padding:0;color:var(--muted);">
-            <li>Put your trained Teachable Machine export folder into <code>./my_model/</code> (model.json + metadata.json).</li>
-            <li>Upload a photo using the uploader or choose a file.</li>
-            <li>Click <em>Classify Image</em> to run the model in your browser; predictions will appear to the right.</li>
-          </ol>
-        </div>
-      </div>
-
-      <!-- right: predictions panel -->
-      <aside class="card">
-        <h2>Predictions</h2>
-        <p class="muted">Top prediction and full probabilities. Labels are displayed capitalized.</p>
-
-        <div style="margin-top:12px;">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div style="width:68px;height:68px;border-radius:10px;background:linear-gradient(180deg,#0b0b0b,#0d0d0d);display:flex;align-items:center;justify-content:center;font-size:28px;">🏁</div>
-            <div>
-              <div style="font-size:14px;color:var(--muted)">Top Prediction</div>
-              <div id="topPred" style="font-weight:800;font-size:18px;margin-top:6px">—</div>
-            </div>
-          </div>
-
-          <hr style="border:none;height:1px;background:rgba(255,255,255,0.03);margin:12px 0;" />
-
-          <div id="predictionsList" aria-live="polite">
-            <!-- prediction rows inserted here -->
-            <ul class="pred-list" id="predListUL" style="margin-top:6px;"></ul>
-          </div>
-
-          <div style="margin-top:14px;color:var(--muted);font-size:13px">
-            Note: Accuracy depends on your model's training data quality and diversity. Include many angles and lighting examples when training.
-          </div>
-        </div>
-      </aside>
-    </section>
-
-    <footer>
-      Built with Teachable Machine • The model runs locally in your browser — no files leave your device.
-    </footer>
-  </main>
-
-  <!-- Hidden image and canvas for predictions -->
-  <img id="hiddenImage" style="display:none" alt="uploaded image for model" />
-  <canvas id="hiddenCanvas" style="display:none"></canvas>
-
-  <script>
-    // === CONFIG ===
-    // Keep the existing placeholder URL as requested:
-    const URL = "./my_model/"; // <-- leave this as-is, put your model files here
-
-    let model, maxPredictions;
-    const fileInput = document.getElementById('fileInput');
-    const uploader = document.getElementById('uploader');
-    const previewArea = document.getElementById('previewArea');
-    const hiddenImage = document.getElementById('hiddenImage');
-    const predictBtn = document.getElementById('predictBtn');
-    const modelStatus = document.getElementById('modelStatus');
-    const topPredEl = document.getElementById('topPred');
-    const predListUL = document.getElementById('predListUL');
-
-    // Load model on page load (non-blocking)
-    async function loadModel() {
-      modelStatus.textContent = 'Loading…';
-      try {
+    async function init() {
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
-        // wait for teachable machine library if it's not loaded yet
-        await waitForTmImage();
-        model = await window.tmImage.load(modelURL, metadataURL);
+
+        model = await tmImage.load(modelURL, metadataURL);
         maxPredictions = model.getTotalClasses();
-        modelStatus.textContent = 'Loaded';
-        predictBtn.disabled = false;
-      } catch (e) {
-        console.error(e);
-        modelStatus.textContent = 'Error loading model — check ./my_model/';
-        model = null;
-        predictBtn.disabled = true;
-      }
+
+        // Webcam setup
+        const flip = true;
+        webcam = new tmImage.Webcam(300, 300, flip);
+        await webcam.setup();
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+
+        document.getElementById("webcam-container").innerHTML = "";
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+
+        // prediction bars
+        labelContainer = document.getElementById("label-container");
+        labelContainer.innerHTML = "";
+        for (let i = 0; i < maxPredictions; i++) {
+            let row = document.createElement("div");
+            row.innerHTML = `
+                <strong>${model.getClassLabels()[i]}</strong>
+                <div class="bar-container"><div class="bar" id="bar${i}"></div></div>
+            `;
+            labelContainer.appendChild(row);
+        }
     }
 
-    function waitForTmImage() {
-      return new Promise((resolve, reject) => {
-        const start = Date.now();
-        (function check(){
-          if (window.tmImage && window.tmImage.load) return resolve();
-          if (Date.now() - start > 8000) return reject(new Error('tmImage not available'));
-          setTimeout(check, 200);
-        })();
-      });
+    async function loop() {
+        webcam.update();
+        await predict();
+        window.requestAnimationFrame(loop);
     }
 
-    // helper: capitalize class name words
-    function prettyLabel(s){
-      // if class names already have capitalization, this will still work fine
-      return s.split(/[\s_-]+/).map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
-    }
+    async function predict() {
+        const prediction = await model.predict(webcam.canvas);
 
-    // handle a file chosen by the user
-    fileInput.addEventListener('change', async (ev) => {
-      const f = ev.target.files && ev.target.files[0];
-      if (!f) return;
-      await showPreviewAndPrepare(f);
-    });
-
-    // drag & drop
-    ;(function setupDrag(){
-      ['dragenter','dragover'].forEach(ev=>uploader.addEventListener(ev, onDragOver, false));
-      ['dragleave','drop'].forEach(ev=>uploader.addEventListener(ev, onDragLeave, false));
-      uploader.addEventListener('drop', onDrop, false);
-      function onDragOver(e){ e.preventDefault(); uploader.classList.add('dragover'); }
-      function onDragLeave(e){ e.preventDefault(); uploader.classList.remove('dragover'); }
-      function onDrop(e){
-        e.preventDefault(); uploader.classList.remove('dragover');
-        const file = e.dataTransfer.files && e.dataTransfer.files[0];
-        if (file) showPreviewAndPrepare(file);
-      }
-    })();
-
-    // show preview + prepare hidden image element
-    async function showPreviewAndPrepare(file){
-      const url = URL.createObjectURL(file);
-      // show a friendly loader in preview while image loads
-      previewArea.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;"><div style="font-size:32px">⏳</div><div class="muted" style="margin-top:8px;">Loading photo…</div></div>';
-      const img = new Image();
-      img.onload = () => {
-        previewArea.innerHTML = '';
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        previewArea.appendChild(img);
-        hiddenImage.src = url;
-        hiddenImage.onload = () => {
-          // ready to classify
-          predictBtn.disabled = false;
-        };
-      };
-      img.onerror = () => {
-        previewArea.innerHTML = '<div style="padding:20px;color:#f88;">Unable to load image.</div>';
-      };
-      img.src = url;
-    }
-
-    // classify the hidden image with the model
-    predictBtn.addEventListener('click', async () => {
-      if (!model) {
-        // try to load model first
-        await loadModel();
-        if (!model) return;
-      }
-      if (!hiddenImage.src) {
-        alert('Please upload a photo first.');
-        return;
-      }
-      modelStatus.textContent = 'Classifying…';
-      try {
-        // tmImage can predict directly from an image element
-        const predictions = await model.predict(hiddenImage);
-        showPredictions(predictions);
-        modelStatus.textContent = 'Ready';
-      } catch (e) {
-        console.error(e);
-        modelStatus.textContent = 'Prediction error';
-        alert('Prediction failed — check the console for details.');
-      }
-    });
-
-    // render predictions: show all as bars and show top
-    function showPredictions(predictions){
-      if (!predictions || !predictions.length) {
-        topPredEl.textContent = '—';
-        predListUL.innerHTML = '';
-        return;
-      }
-      // sort by probability descending
-      predictions.sort((a,b) => b.probability - a.probability);
-      const top = predictions[0];
-      topPredEl.textContent = prettyLabel(top.className) + ' — ' + (top.probability*100).toFixed(1) + '%';
-
-      // build list elements
-      predListUL.innerHTML = '';
-      predictions.forEach(p => {
-        const li = document.createElement('li');
-        li.className = 'pred-item';
-        const label = document.createElement('div');
-        label.className = 'pred-label';
-        label.textContent = prettyLabel(p.className);
-
-        const barWrap = document.createElement('div');
-        barWrap.className = 'pred-bar';
-        const bar = document.createElement('i');
-        // animate width
-        requestAnimationFrame(()=> {
-          bar.style.width = Math.max(1, Math.round(p.probability*100)) + '%';
+        prediction.forEach((p, i) => {
+            let bar = document.getElementById("bar" + i);
+            bar.style.width = (p.probability * 100).toFixed(0) + "%";
         });
-        barWrap.appendChild(bar);
-
-        const value = document.createElement('div');
-        value.className = 'pred-value';
-        value.textContent = (p.probability*100).toFixed(1) + '%';
-
-        li.appendChild(label);
-        li.appendChild(barWrap);
-        li.appendChild(value);
-        predListUL.appendChild(li);
-      });
     }
+</script>
 
-    // kick off initial model load but don't block page rendering
-    (async ()=>{ try{ await loadModel(); } catch(e){ console.warn('Model initial load failed', e); } })();
-
-
-    // === EMOJIS: create 15+ fast floating car emojis across the racetrack ===
-    (function spawnEmojis(){
-      const root = document.getElementById('emojis-root');
-      const emojiChars = ['🚗','🚙','🏎️','🚐','🚕','🚘']; // variety
-      const count = 18; // at least 15 as requested
-
-      for(let i=0;i<count;i++){
-        const span = document.createElement('span');
-        span.className = 'emoji';
-        span.textContent = emojiChars[i % emojiChars.length];
-        // random start x offset
-        const startX = Math.floor(Math.random()*120) - 10; // px shift left/right
-        // each emoji will translate across entire width; set CSS custom properties for animation
-        const sx = (Math.random()*100 - 50) + 'px';
-        const ex = ((Math.random()*160) - 80) + 'vw'; // travel distance
-        const rot = Math.floor(Math.random()*60 - 30) + 'deg';
-        const size = 18 + Math.floor(Math.random()*22); // 18-40px
-        span.style.left = Math.floor(Math.random()*90) + 'vw';
-        span.style.top = Math.floor(Math.random()*80) + 'vh';
-        span.style.fontSize = size + 'px';
-        span.style.setProperty('--sx', sx);
-        span.style.setProperty('--ex', ex);
-        span.style.setProperty('--rot', rot);
-        // randomize speed (shorter duration = faster)
-        const duration = 6 + Math.random()*6; // 6s - 12s
-        span.style.animationDuration = duration + 's';
-        // negative delay so they don't all start together
-        span.style.animationDelay = (-Math.random()*12) + 's';
-        // give slight opacity variance
-        span.style.opacity = (0.75 + Math.random()*0.25).toString();
-        root.appendChild(span);
-      }
-    })();
-
-    // Accessibility: allow clicking uploader to open file input
-    document.getElementById('chooseBtn').addEventListener('click', () => fileInput.click());
-    // allow keyboard 'Enter' on uploader to trigger file input
-    uploader.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
-
-  </script>
 </body>
 </html>
